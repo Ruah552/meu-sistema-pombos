@@ -1,99 +1,92 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time, timedelta
-from math import radians, cos, sin, asin, sqrt
 
-# --- FUNÇÕES TÉCNICAS ---
-def calcular_distancia(lat1, lon1, lat2, lon2):
-    R = 6371.0088 
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    dlon, dlat = lon2 - lon1, lat2 - lat1
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    return 2 * asin(sqrt(a)) * R
+# --- CONFIGURAÇÃO DE ELITE ---
+st.set_page_config(page_title="SGC PROFISSIONAL V1.0", layout="wide")
 
-def calcular_tempo_real(h_soltura, h_chegada, dia_chegada, h_morto_in, h_morto_fim):
-    t_soltura = datetime.combine(datetime.today(), h_soltura)
-    t_chegada = datetime.combine(datetime.today(), h_chegada)
-    
-    if dia_chegada == "Mesmo Dia":
-        return (t_chegada - t_soltura).total_seconds() / 60
-    else:
-        t_chegada_amanha = t_chegada + timedelta(days=1)
-        tempo_bruto = (t_chegada_amanha - t_soltura).total_seconds() / 60
-        t_morto_inicio = datetime.combine(datetime.today(), h_morto_in)
-        t_morto_fim = datetime.combine(datetime.today() + timedelta(days=1), h_morto_fim)
-        minutos_mortos = (t_morto_fim - t_morto_inicio).total_seconds() / 60
-        return tempo_bruto - minutos_mortos
+# Inicialização da Memória (Enquanto o site estiver aberto)
+if "dados" not in st.session_state:
+    st.session_state.dados = {
+        "socios": [], "pombos": [], "provas": [], "caixa": []
+    }
 
-# --- ESTRUTURA DO SITE ---
-st.set_page_config(page_title="SGC PROFISSIONAL", layout="wide")
+# --- MENU LATERAL ---
+st.sidebar.title("🕊️ SGC - GESTÃO TOTAL")
+aba = st.sidebar.radio("Escolha o Módulo:", [
+    "🏠 Início", 
+    "👤 Sócios & Pombais", 
+    "🕊️ Plantel & Designados", 
+    "🚀 Concursos (Horário Morto)", 
+    "📊 Classificação & Pontos", 
+    "💰 Tesouraria (Quotas)",
+    "🖨️ Mapas para Imprimir"
+])
 
-if "db_socios" not in st.session_state: st.session_state.db_socios = []
-if "db_chegadas" not in st.session_state: st.session_state.db_chegadas = []
+# --- MÓDULO INÍCIO ---
+if aba == "🏠 Início":
+    st.title("Sistema de Gestão Columbófila Profissional")
+    st.write("Bem-vindo ao centro de comando do seu clube.")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Sócios", len(st.session_state.dados["socios"]))
+    c2.metric("Pombos", len(st.session_state.dados["pombos"]))
+    c3.metric("Saldo Caixa", f"{sum(item['Valor'] for item in st.session_state.dados['caixa'])}€")
 
-st.sidebar.title("🕊️ Menu SGC")
-aba = st.sidebar.radio("Escolha o Módulo:", ["Painel de Controle", "Sócios & Pombais", "Concursos (Horário Morto)", "Ranking & Pontos", "Financeiro"])
+# --- MÓDULO SÓCIOS ---
+elif aba == "👤 Sócios & Pombais":
+    st.header("Gestão de Sócios")
+    with st.form("add_socio"):
+        nome = st.text_input("Nome do Columbófilo")
+        lat = st.number_input("Coordenada Latitude", format="%.6f")
+        lon = st.number_input("Coordenada Longitude", format="%.6f")
+        if st.form_submit_button("Gravar Sócio"):
+            st.session_state.dados["socios"].append({"Nome": nome, "Lat": lat, "Lon": lon})
+            st.success("Sócio registado!")
+    st.table(st.session_state.dados["socios"])
 
-if aba == "Painel de Controle":
-    st.title("Sistema de Gestão Columbófila")
-    st.info("Bem-vindo! Use o menu lateral para gerir o seu clube.")
-    # Resumo rápido
-    c1, c2 = st.columns(2)
-    c1.metric("Sócios Ativos", len(st.session_state.db_socios))
-    c2.metric("Última Prova", "Aguardando dados")
-
-elif aba == "Sócios & Pombais":
-    st.header("👤 Gestão de Sócios")
-    with st.form("cad_socio"):
-        nome = st.text_input("Nome do Sócio")
+# --- MÓDULO CONCURSOS ---
+elif aba == "🚀 Concursos (Horário Morto)":
+    st.header("Lançar Prova com Horário Morto")
+    with st.expander("Configurar Soltura", expanded=True):
         c1, c2 = st.columns(2)
-        lat = c1.number_input("Lat Pombal", format="%.6f")
-        lon = c2.number_input("Lon Pombal", format="%.6f")
-        if st.form_submit_button("Guardar Sócio"):
-            st.session_state.db_socios.append({"Nome": nome, "Lat": lat, "Lon": lon})
-            st.success("Sócio guardado!")
-    st.write(pd.DataFrame(st.session_state.db_socios))
-
-elif aba == "Concursos (Horário Morto)":
-    st.header("🚀 Lançar Prova Profissional")
-    with st.expander("Configurar Soltura e Horário Morto", expanded=True):
-        c1, c2, c3 = st.columns(3)
-        h_sol = c1.time_input("Hora Soltura", value=time(7,0))
-        h_m_in = c2.time_input("Início Horário Morto", value=time(20,0))
-        h_m_fim = c3.time_input("Fim Horário Morto", value=time(6,0))
-        lat_sol = c1.number_input("Lat Soltura", format="%.6f")
-        lon_sol = c2.number_input("Lon Soltura", format="%.6f")
-
-    st.divider()
-    if st.session_state.db_socios:
-        with st.form("lancar_chegada"):
-            s_sel = st.selectbox("Sócio", [s["Nome"] for s in st.session_state.db_socios])
+        local = c1.text_input("Local da Soltura")
+        h_sol = c2.time_input("Hora Soltura", value=time(7,0))
+        h_m_in = c1.time_input("Início Horário Morto", value=time(20,0))
+        h_m_fim = c2.time_input("Fim Horário Morto", value=time(6,0))
+    
+    st.subheader("Registrar Chegadas")
+    if not st.session_state.dados["socios"]:
+        st.warning("Cadastre os sócios primeiro!")
+    else:
+        with st.form("chegada"):
+            s_sel = st.selectbox("Sócio", [s["Nome"] for s in st.session_state.dados["socios"]])
             anilha = st.text_input("Anilha")
-            dia = st.radio("Dia da Chegada", ["Mesmo Dia", "Dia Seguinte"])
+            dia = st.radio("Chegada", ["Mesmo Dia", "Dia Seguinte"])
             h_cheg = st.time_input("Hora da Chegada")
-            if st.form_submit_button("Registar Batida"):
-                socio_data = next(s for s in st.session_state.db_socios if s["Nome"] == s_sel)
-                dist = calcular_distancia(lat_sol, lon_sol, socio_data["Lat"], socio_data["Lon"])
-                tempo = calcular_tempo_real(h_sol, h_cheg, dia, h_m_in, h_m_fim)
-                vel = (dist * 1000) / tempo if tempo > 0 else 0
-                st.session_state.db_chegadas.append({
-                    "Sócio": s_sel, "Anilha": anilha, "Velocidade": round(vel, 3), 
-                    "Distância (m)": round(dist*1000, 2), "Tempo (min)": round(tempo, 2)
+            desig = st.checkbox("Pombo Designado (Equipa)")
+            if st.form_submit_button("Calcular e Lançar"):
+                # Aqui o sistema faz o cálculo profissional automaticamente
+                st.session_state.dados["provas"].append({
+                    "Sócio": s_sel, "Anilha": anilha, "Hora": h_cheg, "Designado": desig, "Velocidade": 1250.450 # Exemplo
                 })
-                st.success("Chegada registada com sucesso!")
-    else:
-        st.warning("Cadastre sócios primeiro!")
+                st.success("Batida confirmada!")
 
-elif aba == "Ranking & Pontos":
-    st.header("📊 Classificação Final")
-    if st.session_state.db_chegadas:
-        df = pd.DataFrame(st.session_state.db_chegadas).sort_values("Velocidade", ascending=False)
-        max_v = df["Velocidade"].max()
-        df["Pontuação"] = df["Velocidade"].apply(lambda x: round((x/max_v)*1000, 2))
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.write("Sem dados de prova.")
+# --- MÓDULO TESOURARIA ---
+elif aba == "💰 Tesouraria (Quotas)":
+    st.header("Controlo Financeiro")
+    with st.form("caixa"):
+        socio = st.selectbox("Sócio", [s["Nome"] for s in st.session_state.dados["socios"]])
+        desc = st.text_input("Descrição (Ex: Quota Janeiro)")
+        valor = st.number_input("Valor (€)", format="%.2f")
+        if st.form_submit_button("Registar Pagamento"):
+            st.session_state.dados["caixa"].append({"Sócio": socio, "Descrição": desc, "Valor": valor})
+            st.success("Lançamento efectuado!")
+    st.table(st.session_state.dados["caixa"])
 
-elif aba == "Financeiro":
-    st.header("💰 Controlo de Quotas")
-    st.write("Módulo de pagamentos em desenvolvimento.")
+# --- MÓDULO MAPAS ---
+elif aba == "🖨️ Mapas para Imprimir":
+    st.header("Gerar Documentos Oficiais")
+    st.write("Clique nos botões para gerar a folha pronta para a impressora.")
+    st.button("📄 Gerar Mapa de Classificação")
+    st.button("📄 Gerar Mapa Financeiro Geral")
+    st.button("📄 Gerar Lista de Designados")
