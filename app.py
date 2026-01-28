@@ -1,61 +1,57 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="SGC - Gestão Columbófila", layout="wide")
+st.set_page_config(page_title="SGC - Sistema Columbófilo", layout="wide")
 
-# Interface do Sistema
 st.title("🕊️ SGC - Sistema de Gestão Columbófila")
 
-# Menu Lateral
-menu = st.sidebar.radio("Navegação", ["⚙️ Configurar Prova", "🚀 Lançar Chegadas", "📊 Classificação"])
+menu = st.sidebar.radio("Navegação", ["⚙️ Configurar Prova", "🚀 Lançar Chegadas (3+3)", "📊 Classificação"])
 
 if menu == "⚙️ Configurar Prova":
     st.header("⚙️ Parametrização da Solta")
     col1, col2 = st.columns(2)
     with col1:
         cidade = st.text_input("Cidade da Solta", placeholder="Ex: Portalegre")
-        hora_solta = st.time_input("Hora da Solta")
-        modalidade = st.selectbox("Modalidade", ["Velocidade", "Meio-Fundo", "Fundo"])
+        st.write("---")
+        st.write("**Hora da Solta**")
+        c1, c2, c3 = st.columns(3)
+        h_s = c1.number_input("Hora", 0, 23, 8)
+        m_s = c2.number_input("Min", 0, 59, 0)
+        s_s = c3.number_input("Seg", 0, 59, 0)
     with col2:
-        lat_solta = st.text_input("Latitude Solta (Decimal)")
-        lon_solta = st.text_input("Longitude Solta (Decimal)")
+        modalidade = st.selectbox("Modalidade", ["Velocidade", "Meio-Fundo", "Fundo"])
         p_inicial = st.number_input("Pontuação Inicial", value=100.0)
         decrescimento = st.number_input("Decréscimo (Livre)", value=1.0, step=0.1)
     
     if st.button("Gravar Configuração"):
-        st.session_state['prova'] = {
-            "cidade": cidade, "hora": str(hora_solta), "mod": modalidade, 
-            "p_ini": p_inicial, "dec": decrescimento
-        }
-        st.success(f"Prova de {modalidade} configurada!")
+        st.session_state['prova'] = {"cidade": cidade, "mod": modalidade, "p_ini": p_inicial, "dec": decrescimento}
+        st.success("Configuração Guardada!")
 
-elif menu == "🚀 Lançar Chegadas":
-    st.header("🚀 Lançamento de Designados (Regra 3+3)")
-    st.write("Introduza os 6 pombos designados que entraram na classificação.")
+elif menu == "🚀 Lançar Chegadas (3+3)":
+    st.header("🚀 Lançamento de Designados")
+    socio = st.text_input("Nome do Sócio / Pombal")
     
-    socio = st.text_input("Nome do Sócio")
+    st.write("Introduza as anilhas (Ex: 2004466/26) e os tempos:")
     
-    # Grid para lançar os 6 pombos rapidamente
-    st.subheader("Dados dos 6 Pombos")
-    col_anilha, col_hora = st.columns(2)
-    
-    pombos_chegada = []
     for i in range(1, 7):
-        with col_anilha:
-            anilha = st.text_input(f"Anilha {i}", key=f"a_{i}")
-        with col_hora:
-            tempo = st.text_input(f"Hora Chegada (HH:MM:SS) {i}", key=f"t_{i}")
-        pombos_chegada.append({"anilha": anilha, "hora": tempo})
+        # Diferenciação visual para os 3 que pontuam e os 3 que empurram
+        tipo = "PONTUA" if i <= 3 else "EMPURRA"
+        cor = "blue" if i <= 3 else "orange"
+        
+        st.markdown(f"**Pombo {i} - :{cor}[{tipo}]**")
+        c_ani, c_h, c_m, c_s = st.columns([2, 1, 1, 1])
+        
+        with c_ani:
+            st.text_input(f"Anilha/Ano", placeholder="0000000/26", key=f"ani_{i}")
+        with c_h:
+            st.number_input("HH", 0, 23, key=f"h_{i}")
+        with c_m:
+            st.number_input("MM", 0, 59, key=f"m_{i}")
+        with c_s:
+            st.number_input("SS", 0, 59, key=f"s_{i}")
 
-    if st.button("Processar Classificação"):
-        st.info(f"A processar: Os 3 mais rápidos de {socio} somam pontos; os outros 3 apenas empurram.")
-        # Futuramente: Enviar para o Google Sheets
+    if st.button("Gerar Classificação desta Série"):
+        st.success(f"Série de {socio} processada com sucesso!")
 
 elif menu == "📊 Classificação":
-    if 'prova' in st.session_state:
-        p = st.session_state['prova']
-        st.subheader(f"📊 Classificação: {p['cidade']} ({p['mod']})")
-        st.write(f"**Solta:** {p['hora']} | **Regra:** {p['p_ini']} pts (-{p['dec']} por lugar)")
-        st.info("A tabela aparecerá aqui após o processamento dos dados.")
-    else:
-        st.warning("Configure a prova primeiro no menu lateral.")
+    st.info("Aqui aparecerá a lista final com as velocidades e os pontos atribuídos.")
