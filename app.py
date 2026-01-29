@@ -3,7 +3,7 @@ import pandas as pd
 from math import radians, cos, sin, asin, sqrt
 import io
 
-# --- MOTOR DE CÁLCULO ---
+# --- 1. MOTOR DE CÁLCULO (HAVERSINE) ---
 def haversine(lat1, lon1, lat2, lon2):
     try:
         if not lat1 or not lat2: return 0.0
@@ -18,94 +18,66 @@ def calc_vel(dist_m, hs, ms, ss, hc, mc, sc):
         return round(dist_m / t_voo, 3) if t_voo > 0 else 0.0
     except: return 0.0
 
-# --- INICIALIZAÇÃO BLINDADA (ESTADO GLOBAL) ---
-for chave in ['db_socios', 'db_pombos', 'historico']:
-    if chave not in st.session_state:
-        if chave == 'historico':
-            st.session_state[chave] = pd.DataFrame(columns=["Prova", "Modalidade", "Sócio", "Anilha", "Velocidade", "Pontos", "Tipo"])
-        elif chave == 'db_socios':
-            st.session_state[chave] = pd.DataFrame(columns=["Nome", "Lat", "Lon"])
-        else:
-            st.session_state[chave] = pd.DataFrame(columns=["Anilha", "Dono"])
+# --- 2. INICIALIZAÇÃO DE MEMÓRIA (NÃO APAGA NADA) ---
+if 'db_socios' not in st.session_state: st.session_state['db_socios'] = pd.DataFrame(columns=["Nome", "Lat", "Lon"])
+if 'db_pombos' not in st.session_state: st.session_state['db_pombos'] = pd.DataFrame(columns=["Anilha", "Dono"])
+if 'historico' not in st.session_state: 
+    st.session_state['historico'] = pd.DataFrame(columns=["Prova", "Modalidade", "Sócio", "Anilha", "Velocidade", "Pontos", "Tipo"])
 
-st.set_page_config(page_title="SGC Limeirense 1951", layout="wide")
+st.set_page_config(page_title="SGC - Clube Limeirense 1951", layout="wide")
 
-# --- CABEÇALHO ---
-st.markdown("""
-    <div style='text-align: center; background-color: #1b5e20; padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
-        <h1 style='color: white; margin: 0;'>Clube Columbófilo Limeirense (1951)</h1>
-        <p style='color: #e8f5e9; margin: 0;'>Sistema de Gestão Desportiva Estável</p>
+# --- 3. CABEÇALHO OFICIAL ---
+st.markdown(f"""
+    <div style="text-align: center; border: 4px solid #1b5e20; border-radius: 15px; padding: 15px; background-color: #f1f8e9;">
+        <h1 style="margin: 0; color: #1b5e20;">Clube Columbófilo Limeirense</h1>
+        <h3 style="margin: 0; color: #333;">Fundado em 1951</h3>
+        <p style="font-weight: bold; color: #2e7d32;">SISTEMA DE GESTÃO - EVOLUÇÃO CONSTANTE</p>
     </div>
 """, unsafe_allow_html=True)
 
-menu = st.sidebar.radio("MENU PRINCIPAL", [
-    "👤 Cadastro de Sócios e Pombos",
+# --- 4. MENU LATERAL ---
+menu = st.sidebar.radio("PAINEL DE CONTROLE", [
     "⚙️ Configurar Prova", 
-    "🚀 Lançar Resultados", 
+    "👤 Cadastro de Sócios", 
+    "🐦 Cadastro de Pombos", 
+    "🚀 Lançar Resultados (3+3)", 
+    "✏️ Corrigir Histórico", 
     "📊 Apuramento Geral",
-    "✏️ Editar/Corrigir Dados"
+    "📑 Relatórios para Impressão"
 ])
 
 modalidades = ["Filhotes", "Velocidade Adultos", "Meio Fundo Adultos", "Fundo Adultos", "Grande Fundo Adultos"]
 
-# --- 1. CADASTROS (UNIFICADOS PARA NÃO DAR ERRO) ---
-if menu == "👤 Cadastro de Sócios e Pombos":
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("👥 Cadastrar Sócio")
-        with st.form("form_s", clear_on_submit=True):
-            n = st.text_input("Nome do Pombal")
-            la = st.text_input("Latitude (ex: -22.56)")
-            lo = st.text_input("Longitude (ex: -47.40)")
-            if st.form_submit_button("Salvar Sócio"):
-                if n and la and lo:
-                    st.session_state.db_socios = pd.concat([st.session_state.db_socios, pd.DataFrame([{"Nome":n, "Lat":la, "Lon":lo}])], ignore_index=True)
-                    st.success("Sócio salvo!")
-                else: st.error("Preencha todos os campos!")
-    
-    with c2:
-        st.subheader("🐦 Cadastrar Anilha")
-        if st.session_state.db_socios.empty: st.warning("Cadastre um sócio primeiro!")
-        else:
-            with st.form("form_p", clear_on_submit=True):
-                ani = st.text_input("Número da Anilha")
-                dono = st.selectbox("Sócio", st.session_state.db_socios['Nome'].unique())
-                if st.form_submit_button("Vincular Pombo"):
-                    st.session_state.db_pombos = pd.concat([st.session_state.db_pombos, pd.DataFrame([{"Anilha":ani, "Dono":dono}])], ignore_index=True)
-                    st.success("Pombo cadastrado!")
-
-# --- 2. CONFIGURAÇÃO ---
-elif menu == "⚙️ Configurar Prova":
-    st.subheader("⚙️ Configurar Parâmetros da Prova")
+# --- 5. CONFIGURAR PROVA ---
+if menu == "⚙️ Configurar Prova":
+    st.header("⚙️ Parâmetros da Solta")
     with st.container(border=True):
         m_sel = st.selectbox("Modalidade", modalidades)
-        col1, col2 = st.columns(2)
-        with col1:
-            cid = st.text_input("Local da Solta")
-            lat_s, lon_s = st.text_input("Lat Solta"), st.text_input("Lon Solta")
-        with col2:
-            p_ini = st.number_input("Pontos do 1º Lugar", value=100.0)
-            p_dec = st.number_input("Decréscimo p/ Lugar", value=1.0)
+        c1, c2 = st.columns(2)
+        with c1:
+            cid = st.text_input("Cidade da Solta")
+            lat_s, lon_s = st.text_input("Lat (Solta)"), st.text_input("Lon (Solta)")
+        with c2:
+            p_ini = st.number_input("Pontos 1º Lugar", value=1000.0)
+            p_dec = st.number_input("Decréscimo", value=1.0)
             st.write("Hora Solta")
             hs, ms, ss = st.columns(3)
-            h = hs.number_input("H",0,23, key="sh")
-            m = ms.number_input("M",0,59, key="sm")
-            s = ss.number_input("S",0,59, key="ss")
-    if st.button("💾 Gravar Configuração", use_container_width=True):
-        st.session_state[f'conf_{m_sel}'] = {"cid":cid, "lat":lat_s, "lon":lon_s, "h":h, "m":m, "s":s, "p":p_ini, "d":p_dec}
-        st.success(f"Configuração para {m_sel} salva!")
+            h_s = hs.number_input("H",0,23, key="h_solta")
+            m_s = ms.number_input("M",0,59, key="m_solta")
+            s_s = ss.number_input("S",0,59, key="s_solta")
+    if st.button("💾 Salvar Configuração", use_container_width=True):
+        st.session_state[f'conf_{m_sel}'] = {"cid":cid, "lat":lat_s, "lon":lon_s, "h":h_s, "m":m_s, "s":s_s, "p":p_ini, "d":p_dec}
+        st.success("Configuração Salva!")
 
-# --- 3. LANÇAMENTO (O CORAÇÃO DO SISTEMA) ---
-elif menu == "🚀 Lançar Resultados":
-    mod_v = st.selectbox("Modalidade", modalidades)
+# --- 6. LANÇAMENTO (O BOTÃO QUE ESTAVA COM ERRO FOI REPARADO AQUI) ---
+elif menu == "🚀 Lançar Resultados (3+3)":
+    mod_v = st.selectbox("Modalidade Ativa", modalidades)
     if f'conf_{mod_v}' not in st.session_state:
-        st.error(f"Você ainda não configurou a prova de {mod_v}!")
-    elif st.session_state.db_socios.empty:
-        st.error("Não há sócios cadastrados!")
+        st.error("Configure a prova primeiro!")
     else:
         conf = st.session_state[f'conf_{mod_v}']
-        s_sel = st.selectbox("Sócio", st.session_state.db_socios['Nome'].unique())
-        s_data = st.session_state.db_socios[st.session_state.db_socios.Nome == s_sel].iloc[0]
+        s_sel = st.selectbox("Sócio", st.session_state['db_socios']['Nome'].unique())
+        s_data = st.session_state['db_socios'][st.session_state['db_socios'].Nome == s_sel].iloc[0]
         dist = haversine(conf['lat'], conf['lon'], s_data.Lat, s_data.Lon)
         
         st.info(f"📍 Solta: {conf['cid']} | 📏 Distância: {dist/1000:.3f} km")
@@ -113,28 +85,58 @@ elif menu == "🚀 Lançar Resultados":
         chegadas = []
         for i in range(1, 7):
             tipo = "PONTUA" if i <= 3 else "EMPURRA"
-            with st.expander(f"Pombo {i} - {tipo}", expanded=True):
-                c_a, c_h, c_m, c_s = st.columns([2,1,1,1])
-                lista_p = st.session_state.db_pombos[st.session_state.db_pombos.Dono == s_sel]['Anilha'].tolist()
-                ani_sel = c_a.selectbox(f"Anilha {i}", lista_p if lista_p else ["Sem Pombos"], key=f"ani_{i}")
-                hc = c_h.number_input("H",0,23, key=f"h_{i}")
-                mc = c_m.number_input("M",0,59, key=f"m_{i}")
-                sc = c_s.number_input("S",0,59, key=f"s_{i}")
+            cor = "#E3F2FD" if i <= 3 else "#FFF3E0"
+            with st.container(border=True):
+                st.markdown(f"<div style='background-color:{cor}; padding:5px;'><strong>POMBO {i} - {tipo}</strong></div>", unsafe_allow_html=True)
+                ca, ch, cm, cs = st.columns([2,1,1,1])
+                lista_p = st.session_state['db_pombos'][st.session_state['db_pombos'].Dono == s_sel]['Anilha'].unique()
+                a_sel = ca.selectbox(f"Anilha", lista_p if len(lista_p)>0 else ["Nenhum"], key=f"a_{mod_v}_{i}")
+                hc = ch.number_input("H",0,23,key=f"h_{mod_v}_{i}")
+                mc = cm.number_input("M",0,59,key=f"m_{mod_v}_{i}")
+                sc = cs.number_input("S",0,59,key=f"s_{mod_v}_{i}")
                 v = calc_vel(dist, conf['h'], conf['m'], conf['s'], hc, mc, sc)
-                chegadas.append({"Modalidade":mod_v, "Sócio":s_sel, "Anilha":ani_sel, "Velocidade":v, "Tipo":tipo})
+                chegadas.append({"Modalidade": mod_v, "Sócio": s_sel, "Anilha": a_sel, "Velocidade": v, "Tipo": tipo})
 
-        if st.button("🏆 Gravar e Calcular Pontos", use_container_width=True):
+        if st.button("🏆 GRAVAR NO HISTÓRICO", use_container_width=True):
             df_t = pd.DataFrame(chegadas).sort_values("Velocidade", ascending=False).reset_index(drop=True)
             for idx, r in df_t.iterrows():
                 r['Pontos'] = max(0, conf['p'] - (idx * conf['d']))
-                st.session_state.historico = pd.concat([st.session_state.historico, pd.DataFrame([r])], ignore_index=True)
-            st.success("Resultados gravados no histórico!")
+                st.session_state['historico'] = pd.concat([st.session_state['historico'], pd.DataFrame([r])], ignore_index=True)
+            st.success("✅ Gravado com sucesso!")
 
-# --- 4. APURAMENTO ---
+# --- 7. APURAMENTO (GERAL E MODALIDADES) ---
 elif menu == "📊 Apuramento Geral":
-    df = st.session_state.historico
-    if df.empty: st.info("Histórico vazio.")
-    else:
-        t1, t2 = st.tabs(["SÓCIOS", "POMBO ÁS"])
-        with t1: st.table(df[df.Tipo == 'PONTUA'].groupby('Sócio')['Pontos'].sum().sort_values(ascending=False))
-        with t2: st.table(df.groupby(['Anilha', 'Sócio'])['Pontos'].sum().sort_values(ascending=False))
+    filtro = st.selectbox("Ver Classificação de:", ["GERAL ABSOLUTO"] + modalidades)
+    t1, t2 = st.tabs(["👥 Sócios", "🕊️ Pombos"])
+    df = st.session_state['historico']
+    if not df.empty:
+        df_v = df if filtro == "GERAL ABSOLUTO" else df[df.Modalidade == filtro]
+        with t1:
+            st.write(f"### Ranking Sócios - {filtro}")
+            st.table(df_v[df_v.Tipo == 'PONTUA'].groupby('Sócio')['Pontos'].sum().sort_values(ascending=False))
+        with t2:
+            st.write(f"### Ranking Pombo Ás - {filtro}")
+            st.table(df_v.groupby(['Anilha', 'Sócio'])['Pontos'].sum().sort_values(ascending=False))
+
+# --- 8. CADASTROS E RELATÓRIOS (PRESERVADOS) ---
+elif menu == "👤 Cadastro de Sócios":
+    with st.form("fs"):
+        n = st.text_input("Nome")
+        la, lo = st.text_input("Lat"), st.text_input("Lon")
+        if st.form_submit_button("Salvar"):
+            st.session_state['db_socios'] = pd.concat([st.session_state['db_socios'], pd.DataFrame([{"Nome":n, "Lat":la, "Lon":lo}])], ignore_index=True)
+
+elif menu == "🐦 Cadastro de Pombos":
+    with st.form("fp"):
+        ani = st.text_input("Anilha")
+        dono = st.selectbox("Dono", st.session_state['db_socios']['Nome'].unique())
+        if st.form_submit_button("Vincular"):
+            st.session_state['db_pombos'] = pd.concat([st.session_state['db_pombos'], pd.DataFrame([{"Anilha":ani, "Dono":dono}])], ignore_index=True)
+
+elif menu == "✏️ Corrigir Histórico":
+    st.session_state['historico'] = st.data_editor(st.session_state['historico'], num_rows="dynamic")
+
+elif menu == "📑 Relatórios para Impressão":
+    if not st.session_state['historico'].empty:
+        csv = st.session_state['historico'].to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Baixar Excel", csv, "relatorio.csv", "text/csv")
