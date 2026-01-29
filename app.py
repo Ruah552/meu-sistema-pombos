@@ -32,10 +32,10 @@ st.set_page_config(page_title="SGC Limeirense 1951", layout="wide")
 
 # --- CABEÇALHO ---
 st.markdown(f"""
-    <div style="text-align: center; border: 4px solid #1b5e20; border-radius: 15px; padding: 15px; background-color: #f1f8e9;">
+    <div style="text-align: center; border: 4px solid #1b5e20; border-radius: 15px; padding: 15px; background-color: #f1f8e9; margin-bottom: 20px;">
         <h1 style="margin: 0; color: #1b5e20;">Clube Columbófilo Limeirense</h1>
         <h3 style="margin: 0; color: #333;">Fundado em 1951</h3>
-        <p style="font-weight: bold; color: #2e7d32;">EVOLUÇÃO: ARQUIVAMENTO AUTOMÁTICO POR DONO</p>
+        <p style="font-weight: bold; color: #2e7d32;">SISTEMA DE GESTÃO - VERSÃO CORRIGIDA E ESTÁVEL</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -44,84 +44,111 @@ menu = st.sidebar.radio("PAINEL DE CONTROLE", [
     "👤 Cadastro de Sócios", 
     "🐦 Cadastro de Pombos", 
     "🚀 Lançar Resultados (3+3)", 
-    "📊 Apuramento Geral e Rankings",
-    "✏️ Corrigir/Editar Histórico",
-    "📑 Relatórios Oficiais"
+    "📊 Apuramento Geral",
+    "✏️ Editar Histórico",
+    "📑 Relatórios"
 ])
 
 modalidades = ["Filhotes", "Velocidade Adultos", "Meio Fundo Adultos", "Fundo Adultos", "Grande Fundo Adultos"]
 
-# --- 1. CADASTRO DE POMBOS (VÍNCULO COM DONO) ---
-if menu == "🐦 Cadastro de Pombos":
-    st.subheader("🐦 Arquivamento de Pombos")
-    if st.session_state.db_socios.empty:
-        st.warning("⚠️ Cadastre os sócios primeiro para poder vincular os pombos!")
-    else:
-        with st.form("form_pombo", clear_on_submit=True):
-            ani = st.text_input("Número da Anilha")
-            dono = st.selectbox("Proprietário/Dono", st.session_state.db_socios['Nome'].unique())
-            if st.form_submit_button("Arquivar Pombo"):
-                novo_p = pd.DataFrame([{"Anilha": ani, "Dono": dono}])
-                st.session_state.db_pombos = pd.concat([st.session_state.db_pombos, novo_p], ignore_index=True)
-                st.success(f"Pombo {ani} arquivado para {dono}!")
+# --- 1. CONFIGURAR PROVA ---
+if menu == "⚙️ Configurar Prova":
+    st.subheader("⚙️ Configuração da Solta")
+    with st.container(border=True):
+        m_sel = st.selectbox("Modalidade", modalidades)
+        c1, c2 = st.columns(2)
+        with c1:
+            cid = st.text_input("Local da Solta", key="cid_input")
+            lat_s = st.text_input("Latitude Solta", key="lat_s_input")
+            lon_s = st.text_input("Longitude Solta", key="lon_s_input")
+        with c2:
+            p_ini = st.number_input("Pontos 1º Lugar", value=1000.0, key="p_ini_input")
+            p_dec = st.number_input("Decréscimo", value=1.0, key="p_dec_input")
+            st.write("Hora Solta")
+            h, m, s = st.columns(3)
+            hs = h.number_input("H",0,23, key="hs_input")
+            ms = m.number_input("M",0,59, key="ms_input")
+            ss = s.number_input("S",0,59, key="ss_input")
+    
+    if st.button("💾 Gravar Configuração", use_container_width=True):
+        st.session_state[f'conf_{m_sel}'] = {"cid":cid, "lat":lat_s, "lon":lon_s, "h":hs, "m":ms, "s":ss, "p":p_ini, "d":p_dec}
+        st.success(f"Configuração para {m_sel} gravada!")
 
-# --- 2. LANÇAMENTO (FILTRAGEM POR DONO) ---
+# --- 2. CADASTRO DE SÓCIOS E POMBOS (VÍNCULO GARANTIDO) ---
+elif menu == "👤 Cadastro de Sócios":
+    with st.form("f_socio", clear_on_submit=True):
+        n = st.text_input("Nome do Pombal")
+        la, lo = st.text_input("Latitude"), st.text_input("Longitude")
+        if st.form_submit_button("Salvar Sócio"):
+            st.session_state.db_socios = pd.concat([st.session_state.db_socios, pd.DataFrame([{"Nome":n, "Lat":la, "Lon":lo}])], ignore_index=True)
+            st.success("Sócio Cadastrado!")
+
+elif menu == "🐦 Cadastro de Pombos":
+    if st.session_state.db_socios.empty:
+        st.warning("Cadastre um sócio primeiro!")
+    else:
+        with st.form("f_pombo", clear_on_submit=True):
+            ani = st.text_input("Número da Anilha")
+            dono = st.selectbox("Dono", st.session_state.db_socios['Nome'].unique())
+            if st.form_submit_button("Arquivar para o Dono"):
+                st.session_state.db_pombos = pd.concat([st.session_state.db_pombos, pd.DataFrame([{"Anilha":ani, "Dono":dono}])], ignore_index=True)
+                st.success(f"Pombo {ani} arquivado com sucesso!")
+
+# --- 3. LANÇAMENTO (CORREÇÃO DOS BOTÕES) ---
 elif menu == "🚀 Lançar Resultados (3+3)":
-    mod_v = st.selectbox("Selecione a Modalidade", modalidades)
+    mod_v = st.selectbox("Modalidade", modalidades)
     if f'conf_{mod_v}' not in st.session_state:
         st.error("Configure a prova primeiro!")
     else:
         conf = st.session_state[f'conf_{mod_v}']
-        s_sel = st.selectbox("Sócio Concorrente", st.session_state.db_socios['Nome'].unique())
+        s_sel = st.selectbox("Sócio", st.session_state.db_socios['Nome'].unique())
         
-        # BUSCA SÓ OS POMBOS DESSE SÓCIO
         pombos_arquivados = st.session_state.db_pombos[st.session_state.db_pombos.Dono == s_sel]['Anilha'].tolist()
         
         if not pombos_arquivados:
-            st.warning(f"O sócio {s_sel} não tem pombos arquivados no sistema!")
+            st.warning(f"Este sócio não tem pombos arquivados!")
         else:
             s_data = st.session_state.db_socios[st.session_state.db_socios.Nome == s_sel].iloc[0]
             dist = haversine(conf['lat'], conf['lon'], s_data.Lat, s_data.Lon)
-            st.info(f"📏 Distância para {s_sel}: {dist/1000:.3f} km")
-
-            chegadas = []
+            
+            st.info(f"📏 Distância: {dist/1000:.3f} km")
+            
+            chegadas_temporarias = []
             for i in range(1, 7):
                 tipo = "PONTUA" if i <= 3 else "EMPURRA"
                 cor = "#D1E9F6" if i <= 3 else "#F6EACB"
                 with st.container(border=True):
                     st.markdown(f"<div style='background-color:{cor}; padding:5px;'><strong>Pombo {i} - {tipo}</strong></div>", unsafe_allow_html=True)
                     c_a, c_h, c_m, c_s = st.columns([2,1,1,1])
-                    a_sel = c_a.selectbox(f"Anilha", pombos_arquivados, key=f"ani_{s_sel}_{i}")
-                    hc = c_h.number_input("H",0,23, key=f"h_{i}")
-                    mc = c_m.number_input("M",0,59, key=f"m_{i}")
-                    sc = c_s.number_input("S",0,59, key=f"s_{i}")
+                    a_sel = c_a.selectbox(f"Anilha {i}", pombos_arquivados, key=f"sel_{mod_v}_{s_sel}_{i}")
+                    hc = c_h.number_input("H",0,23, key=f"h_{mod_v}_{s_sel}_{i}")
+                    mc = c_m.number_input("M",0,59, key=f"m_{mod_v}_{s_sel}_{i}")
+                    sc = c_s.number_input("S",0,59, key=f"s_{mod_v}_{s_sel}_{i}")
                     v = calc_vel(dist, conf['h'], conf['m'], conf['s'], hc, mc, sc)
-                    chegadas.append({"Modalidade": mod_v, "Sócio": s_sel, "Anilha": a_sel, "Velocidade": v, "Tipo": tipo})
+                    chegadas_temporarias.append({"Modalidade": mod_v, "Sócio": s_sel, "Anilha": a_sel, "Velocidade": v, "Tipo": tipo})
 
-            if st.button("🏆 GRAVAR E CALCULAR PONTOS", use_container_width=True):
-                df_t = pd.DataFrame(chegadas).sort_values("Velocidade", ascending=False).reset_index(drop=True)
-                for idx, r in df_t.iterrows():
+            # BOTÃO DE GRAVAÇÃO COM CHAVE ÚNICA
+            if st.button("🏆 GRAVAR RESULTADOS", key=f"btn_gravar_{mod_v}_{s_sel}", use_container_width=True):
+                df_calc = pd.DataFrame(chegadas_temporarias).sort_values("Velocidade", ascending=False).reset_index(drop=True)
+                for idx, r in df_calc.iterrows():
                     r['Pontos'] = max(0, conf['p'] - (idx * conf['d']))
                     st.session_state.historico = pd.concat([st.session_state.historico, pd.DataFrame([r])], ignore_index=True)
-                st.success(f"Resultados de {s_sel} arquivados com sucesso!")
+                st.balloons()
+                st.success("Resultados arquivados!")
 
-# --- 3. APURAMENTO (SOMA GERAL DAS 10 PROVAS) ---
-elif menu == "📊 Apuramento Geral e Rankings":
+# --- 4. APURAMENTO ---
+elif menu == "📊 Apuramento Geral":
     df = st.session_state.historico
     if df.empty:
-        st.info("Nenhum resultado lançado ainda.")
+        st.info("Nenhum dado lançado.")
     else:
-        filtro = st.selectbox("Visualizar:", ["GERAL ABSOLUTO (Todas as Provas)"] + modalidades)
+        filtro = st.selectbox("Filtrar:", ["GERAL ABSOLUTO"] + modalidades)
         df_v = df if "GERAL" in filtro else df[df.Modalidade == filtro]
         
-        tab1, tab2 = st.tabs(["👥 Campeonato de Sócios", "🕊️ Campeonato Pombo Ás"])
-        with tab1:
-            # Soma APENAS os 3 designados (Tipo PONTUA)
-            res_s = df_v[df_v.Tipo == 'PONTUA'].groupby('Sócio')['Pontos'].sum().sort_values(ascending=False).reset_index()
-            st.table(res_s)
-        with tab2:
-            # Soma TODOS os pontos da anilha
-            res_p = df_v.groupby(['Anilha', 'Sócio'])['Pontos'].sum().sort_values(ascending=False).reset_index()
-            st.table(res_p)
-
-# [As abas de Configuração, Sócio e Relatório permanecem iguais às versões anteriores para garantir a continuidade]
+        t1, t2 = st.tabs(["👥 Sócios", "🕊️ Pombos Ás"])
+        with t1:
+            # SOMA SÓ DESIGNADOS
+            st.table(df_v[df_v.Tipo == 'PONTUA'].groupby('Sócio')['Pontos'].sum().sort_values(ascending=False))
+        with t2:
+            # SOMA TUDO POR ANILHA
+            st.table(df_v.groupby(['Anilha', 'Sócio'])['Pontos'].sum().sort_values(ascending=False))
