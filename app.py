@@ -12,9 +12,9 @@ def haversine(lat1, lon1, lat2, lon2):
         return (2 * asin(sqrt(a))) * 6371 * 1000 
     except: return 0.0
 
-def calc_vel(dist_m, hs, ms, ss, hc, mc, sc):
+def calc_vel(dist_m, hs, ms, hc, mc):
     try:
-        t_voo = ((hc*3600 + mc*60 + sc) - (hs*3600 + ms*60 + ss)) / 60
+        t_voo = ((hc*3600 + mc*60) - (hs*3600 + ms*60)) / 60
         return round(dist_m / t_voo, 3) if t_voo > 0 else 0.0
     except: return 0.0
 
@@ -36,16 +36,16 @@ if menu == "Configurar Prova":
     la_s = c1.text_input("Lat Solta")
     lo_s = c1.text_input("Lon Solta")
     p1 = c2.number_input("Pontos 1º", 1000)
-    dec = c2.number_input("Decréscimo", 1)
-    hs = c2.number_input("Hora Solta", 0, 23)
-    ms = c2.number_input("Min Solta", 0, 59)
+    dec = c2.number_input("Perda", 1)
+    hs = c2.number_input("H Solta", 0, 23)
+    ms = c2.number_input("M Solta", 0, 59)
     if st.button("Salvar Prova"):
         st.session_state[f'c_{m}'] = {"lat":la_s, "lon":lo_s, "h":hs, "m":ms, "p":p1, "d":dec}
         st.success("Prova Salva!")
 
 elif menu == "Sócios":
     with st.form("f_socio"):
-        n = st.text_input("Nome do Pombal")
+        n = st.text_input("Nome")
         la, lo = st.text_input("Lat"), st.text_input("Lon")
         if st.form_submit_button("Salvar"):
             st.session_state.db_socios = pd.concat([st.session_state.db_socios, pd.DataFrame([{"Nome":n,"Lat":la,"Lon":lo}])], ignore_index=True)
@@ -66,7 +66,7 @@ elif menu == "Lançar":
         conf = st.session_state[f'c_{m_v}']
         socio = st.selectbox("Sócio", st.session_state.db_socios['Nome'].unique())
         pombos = st.session_state.db_pombos[st.session_state.db_pombos.Dono == socio]['Anilha'].tolist()
-        if not pombos: st.warning("Este sócio não tem pombos arquivados!")
+        if not pombos: st.warning("Sem pombos arquivados para este sócio.")
         else:
             s_d = st.session_state.db_socios[st.session_state.db_socios.Nome == socio].iloc[0]
             dist = haversine(conf['lat'], conf['lon'], s_d.Lat, s_d.Lon)
@@ -75,11 +75,11 @@ elif menu == "Lançar":
                 t = "PONTUA" if i <= 3 else "EMPURRA"
                 with st.container(border=True):
                     c_a, c_h, c_m = st.columns([2,1,1])
-                    ani = c_a.selectbox(f"Anilha {i}", pombos, key=f"a{m_v}{socio}{i}")
+                    ani_s = c_a.selectbox(f"Anilha {i}", pombos, key=f"a{m_v}{socio}{i}")
                     hc = c_h.number_input("H",0,23, key=f"h{m_v}{socio}{i}")
                     mc = c_m.number_input("M",0,59, key=f"m{m_v}{socio}{i}")
-                    v = calc_vel(dist, conf['h'], conf['m'], 0, hc, mc, 0)
-                    res_temp.append({"Modalidade":m_v,"Sócio":socio,"Anilha":ani,"Velocidade":v, "Tipo":t})
+                    v = calc_vel(dist, conf['h'], conf['m'], hc, mc)
+                    res_temp.append({"Modalidade":m_v,"Sócio":socio,"Anilha":ani_s,"Velocidade":v, "Tipo":t})
             if st.button("GRAVAR"):
                 df_c = pd.DataFrame(res_temp).sort_values("Velocidade", ascending=False).reset_index(drop=True)
                 for idx, r in df_c.iterrows():
@@ -96,4 +96,4 @@ elif menu == "Editar":
 elif menu == "Relatórios":
     if not st.session_state.historico.empty:
         csv = st.session_state.historico.to_csv(index=False).encode('utf-8')
-        st.download_button("Baixar CSV (Abre no Excel)", csv, "resultados.csv", "text/csv")
+        st.download_button("Baixar Resultados (CSV)", csv, "resultados.csv", "text/csv")
